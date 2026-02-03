@@ -156,6 +156,12 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+REM Create frontend .env for API configuration
+if not exist ".env" (
+    echo Creating frontend .env file...
+    echo REACT_APP_BACKEND_URL=http://127.0.0.1:8000> .env
+)
+
 echo Installing with npm...
 call npm install
 if %errorlevel% neq 0 (
