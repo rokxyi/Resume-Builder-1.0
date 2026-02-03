@@ -107,6 +107,11 @@ class LLMService:
         """
         Analyze job description and resumes, then generate tailored resume content
         """
+        if not job_description or not job_description.strip():
+            raise ValueError("Job description cannot be empty")
+        
+        if not base_resumes:
+            raise ValueError("At least one base resume must be provided")
         
         # Get model configuration from settings
         try:

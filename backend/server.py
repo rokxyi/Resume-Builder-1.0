@@ -102,8 +102,12 @@ async def upload_file(file: UploadFile = File(...)):
         file_path = settings.UPLOAD_DIR / f"{file_id}{file_ext}"
         
         # Save file
-        async with aiofiles.open(file_path, 'wb') as f:
-            await f.write(content)
+        try:
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(content)
+        except IOError as e:
+            logger.error(f"IO Error saving file {file_id}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save file to disk")
         
         return UploadResponse(
             file_id=file_id,
@@ -116,7 +120,7 @@ async def upload_file(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error uploading file: {e}")
+        logger.error(f"Unexpected error uploading file: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during upload")
 
 
@@ -232,28 +236,46 @@ async def generate_resume(application_id: str):
                 try:
                     text = await document_parser.parse_file(resume['file_path'], resume['file_type'])
                     parsed_resumes.append(text)
+                except ValueError as ve:
+                    logger.warning(f"Skipping unparseable resume {resume['file_name']}: {ve}")
+                    continue # Skip bad files but try others
                 except Exception as e:
                     logger.error(f"Error parsing resume {resume['file_name']}: {e}")
+                    # Continue attempting others?
+                    continue
             
             if not parsed_resumes:
-                raise HTTPException(status_code=400, detail="Could not parse any resumes")
+                raise HTTPException(status_code=400, detail="Could not parse any provided resumes")
             
             # Generate
-            llm_response = await llm_service.analyze_and_generate_resume(
-                job_description=app['job_description'],
-                base_resumes=parsed_resumes,
-                model_id=app['ai_model'],
-                session_id=application_id,
-                formatting_preference=app.get('formatting_preference')
-            )
+            try:
+                llm_response = await llm_service.analyze_and_generate_resume(
+                    job_description=app['job_description'],
+                    base_resumes=parsed_resumes,
+                    model_id=app['ai_model'],
+                    session_id=application_id,
+                    formatting_preference=app.get('formatting_preference')
+                )
+            except ValueError as ve:
+                # Configuration error or invalid model
+                raise HTTPException(status_code=400, detail=str(ve))
             
             # Parse & Create Docx
             parsed_response = resume_generator._parse_llm_response(llm_response['raw_response'])
+            
+            if "error" in parsed_response:
+                # LLM failed to produce valid JSON
+                logger.error(f"LLM JSON Parse Error: {parsed_response['error']}. Raw: {parsed_response.get('raw')}")
+                raise HTTPException(status_code=500, detail="AI failed to generate structured data. Please try again.")
+
             output_filename = f"{application_id}.docx"
             output_path = settings.GENERATED_DIR / output_filename
             
-            if "error" not in parsed_response:
+            try:
                 resume_generator.generate_docx(parsed_response, str(output_path))
+            except Exception as e:
+                logger.error(f"DOCX Generation Error: {e}")
+                raise HTTPException(status_code=500, detail="Failed to generate DOCX file")
             
             # Update Success
             await ApplicationRepository.update(application_id, {
@@ -276,9 +298,13 @@ async def generate_resume(application_id: str):
                 status_code=429, 
                 detail="AI Rate Limit Exceeded. You have likely hit the daily quota for the free tier. Please try again tomorrow or upgrade your API key."
             )
+        except HTTPException:
+            await ApplicationRepository.update(application_id, {"status": "failed"})
+            raise
         except Exception as e:
             await ApplicationRepository.update(application_id, {"status": "failed"})
-            raise e
+            logger.exception(f"Unexpected error in generation flow: {e}")
+            raise HTTPException(status_code=500, detail=f"Error generating resume: {str(e)}")
 
     except HTTPException:
         raise
