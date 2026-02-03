@@ -73,7 +73,7 @@ REM Check and Install Node.js
 REM ==========================================
 echo [2/3] Checking Node.js installation...
 echo ========================================
-where npm.cmd >nul 2>&1
+call npm --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo WARNING: Node.js/npm is not installed
     echo.
@@ -94,8 +94,10 @@ if %errorlevel% neq 0 (
         goto :MANUAL_NODE_INSTALL
     )
 ) else (
+    echo Node.js version:
     node --version
-    npm --version
+    echo npm version:
+    call npm --version
     echo [✓] Node.js and npm are already installed
 )
 echo.
@@ -132,12 +134,12 @@ if not exist "generated" mkdir generated
 if not exist "uploads" mkdir uploads
 
 pip install -r requirements.txt
-pip install --upgrade google-generativeai
 if %errorlevel% neq 0 (
     echo ERROR: Failed to install backend dependencies
     pause
     exit /b 1
 )
+pip install --upgrade google-generativeai
 
 echo [✓] Backend dependencies installed successfully
 echo.
@@ -154,26 +156,16 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Use npm with legacy-peer-deps and force flags to handle dependency conflicts
-echo Installing with npm (this may take a few minutes)...
-call "%ProgramFiles%\nodejs\npm.cmd" install --legacy-peer-deps --force
-
+echo Installing with npm...
+call npm install
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to install frontend dependencies
-    echo Trying alternative installation method...
-    call "%ProgramFiles%\nodejs\npm.cmd" install --legacy-peer-deps
+    echo WARNING: Standard npm install failed, trying with legacy-peer-deps...
+    call npm install --legacy-peer-deps
     if %errorlevel% neq 0 (
-        echo ERROR: All installation methods failed
+        echo ERROR: Failed to install frontend dependencies
         pause
         exit /b 1
     )
-)
-
-REM Install additional required packages for Node.js v24 compatibility
-echo Installing compatibility packages...
-call "%ProgramFiles%\nodejs\npm.cmd" install ajv ajv-keywords --legacy-peer-deps
-if %errorlevel% neq 0 (
-    echo WARNING: Failed to install compatibility packages, but continuing...
 )
 
 echo [✓] Frontend dependencies installed successfully
