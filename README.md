@@ -66,15 +66,21 @@ npm install ajv ajv-keywords --legacy-peer-deps
 
 ### 1. Environment Variables
 
-After running INSTALL.bat, edit `backend\.env`:
+### 1. Environment Variables
+
+After running INSTALL.bat, the `backend\.env` file should be created automatically from `.env.example`.
+If not, copy `.env.example` to `.env` manually.
+
+Edit `backend\.env` to add your API key:
 
 ```env
-# LLM API Key (Optional - for AI features)
+# LLM API Key (Required for AI features)
+# Get from: https://makersuite.google.com/app/apikey (Gemini)
+# or https://platform.openai.com/api-keys (OpenAI)
 LLM_API_KEY=your_api_key_here
 ```
 
-**Getting your API Key:**
-Configure with your chosen LLM provider's API key (OpenAI, Gemini, etc.)
+**Important:** You must replace `your_api_key_here` with your actual API key for the AI features to work.
 
 ## 🏃 Running the Application
 
