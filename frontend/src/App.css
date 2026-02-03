@@ -1,0 +1,8 @@
+/* Override any default centered text */
+.App {
+  text-align: left;
+}
+
+body {
+  text-align: left;
+}
